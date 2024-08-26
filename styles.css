@@ -6,3 +6,109 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+.user-info-container {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+}
+.user-info-name {
+	margin-left: 5px;
+	font-weight: bold;
+	white-space: nowrap;
+}
+
+.user-info-item {
+	margin-left: 10px;
+	white-space: nowrap;
+}
+
+.user-info-container img {
+	border-radius: 50%;
+	width: 30px;
+	height: 30px;
+}
+
+hr{
+	margin: 10px 0 10px 0;
+}
+
+
+.yaml-form {
+	display: flex;
+	flex-direction: column;
+	padding: 10px;
+}
+.form-group {
+	display: flex;
+	margin-bottom: 10px;
+	justify-content: space-between;
+}
+.form-label {
+	display: block;
+	margin-bottom: 5px;
+	font-weight: bold;
+}
+.form-input {
+	width: 80%;
+	padding: 8px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+}
+.modal-button {
+	display: inline-block;
+	padding: 8px 16px;
+	border: none;
+	border-radius: 4px;
+	color: #fff;
+	cursor: pointer;
+	margin: 5px;
+	font-size: 16px;
+}
+.font-size-16 {
+	font-size: 16px;
+}
+
+.settings-row {
+	display: flex;
+	align-items: center;
+	gap: 10px; /* 控制状态、时间和按钮之间的间距 */
+	justify-content: space-between;
+}
+.settings-row .setting-item{
+	padding: 0;
+	border-top: 0;
+}
+
+.status-display {
+	width: 14px;
+	height: 14px;
+	border-radius: 20px; /* 设置按钮圆角 */
+	margin-right: 10px;
+}
+.time-display {
+	margin-right: 10px;
+}
+.status-normal {
+	background-color: green; /* 绿色表示正常 */
+}
+
+.status-warning {
+	background-color: orange; /* 橙色表示警告 */
+}
+
+.status-error {
+	background-color: red; /* 红色表示错误 */
+}
+
+.status-default {
+	background-color: gray; /* 默认颜色 */
+}
+
+button.cta {
+	border: none;
+	box-shadow: none;
+	outline: none;
+	padding: 8px 16px; /* 设置按钮内边距 */
+	border-radius: 4px; /* 设置按钮圆角 */
+	cursor: pointer; /* 设置鼠标悬停时的光标样式 */
+}
