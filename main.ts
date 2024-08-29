@@ -8,7 +8,8 @@ import {
 	parseYaml,
 	Plugin,
 	PluginSettingTab,
-	Setting, TFile
+	Setting,
+	TFile
 } from 'obsidian';
 import './styles.css';
 
@@ -28,6 +29,7 @@ interface DotCodeArticleSettings {
 		categoryCount: string;
 	};
 	checkArticle: any;
+	showArticle: boolean;
 }
 
 const DEFAULT_SETTINGS: DotCodeArticleSettings = {
@@ -53,7 +55,9 @@ const DEFAULT_SETTINGS: DotCodeArticleSettings = {
 		title: '',
 		createdTime: '',
 		updatedTime: '',
-	}
+		isPush: 0,
+	},
+	showArticle: false
 }
 
 export default class DotCodeArticle extends Plugin {
@@ -69,8 +73,9 @@ export default class DotCodeArticle extends Plugin {
 		const ribbonIconEl = this.addRibbonIcon('dotcodeIcon', '发布', (evt: MouseEvent) => {
 			// 执行查询并获取用户信息
 			this.getUserInfo();
-
-			new UploadArticleModel(this.app, this).open();
+			if (this.settings.showArticle) {
+				new ArticleModel(this.app, this).open();
+			}
 		});
 		// 使用功能区执行其他操作
 		ribbonIconEl.addClass('my-plugin-ribbon-class');
@@ -82,10 +87,14 @@ export default class DotCodeArticle extends Plugin {
 
 		// 这增加了一个简单的命令，可以在任何地方触发
 		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
+			id: '发布当前笔记',
+			name: '发布当前笔记',
 			callback: () => {
-				new SampleModal(this.app).open();
+				// 执行查询并获取用户信息
+				this.getUserInfo();
+				if (this.settings.showArticle) {
+					new ArticleModel(this.app, this).open();
+				}
 			}
 		});
 		// 这将添加一个编辑器命令，该命令可以在当前编辑器实例上执行某些操作
@@ -202,15 +211,19 @@ export default class DotCodeArticle extends Plugin {
 			if (result.code === 200) {
 				this.settings.userInfo = result.data;
 				await this.saveSettings();
+				this.settings.showArticle = true;
 			} else {
+				this.settings.showArticle = false;
 				new Notice(result.msg || '获取用户信息失败');
 			}
 		} catch (error) {
+			this.settings.showArticle = false;
 			console.error('UserInfo error:', error);
 			new Notice('获取用户信息失败，请检查信息是否正确');
 		}
 	}
 
+	// 检查文章是否存在
 	async checkArticleExistence(title: string, date: string) {
 		try {
 			const response = await fetch(this.settings.publishUrl + `note/article/exist/state?title=${title}&date=${date}`, {
@@ -224,13 +237,83 @@ export default class DotCodeArticle extends Plugin {
 			if (result.code === 200) {
 				console.log('Article existence check result:', result);
 				this.settings.checkArticle = result.data;
+				this.settings.showArticle = true;
 			} else {
+				this.settings.showArticle = false;
 				new Notice(result.msg || '获取文章存在状态失败');
 			}
 		} catch (error) {
+			this.settings.showArticle = false;
 			console.error('checkArticleExistence error:', error);
 			new Notice('获取文章存在状态失败，请检查信息是否正确');
 		}
+	}
+
+	// 上传文件
+	async uploadFile(file: TFile): Promise<any> {
+		// 读取图片文件内容
+		const fileContent = await this.app.vault.readBinary(file);
+		// 假设文件是PNG图片
+		const blob = new Blob([fileContent], { type: 'image/png' });
+		// 创建FormData对象，用于构建表单数据
+		const formData = new FormData();
+		formData.append('file', blob, file.basename);
+
+		// 创建HTTP请求
+		const response = await fetch(this.settings.publishUrl + 'file/image', {
+			method: 'POST',
+			headers: {
+				'Authorization': this.settings.sessionToken,
+			},
+			body: formData,
+		});
+		if (!response.ok) {
+			throw new Error(`上传失败: ${response.statusText}`);
+		}
+		const result = await response.json();
+		if (result.code != "200") {
+			return null
+		}
+		console.log("输出的数据", result.data)
+		return result.data
+	}
+
+	//上传文章
+	async uploadArticle(article: any,checkArticle:any) {
+		try {
+			const response = await fetch(this.settings.publishUrl + 'note/article/local/upload', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': this.settings.sessionToken,
+				},
+				body: JSON.stringify({
+					"title": article.title,
+					"categories": article.categories,
+					"tags": article.tags,
+					"original": article.original,
+					"date": article.date,
+					"updated": article.updated,
+					"cover": article.cover,
+					"content": article.content,
+					"summary": article.summary,
+					"isPush": article.isPush,
+					"id": checkArticle.id,
+				})
+			});
+			const result = await response.json();
+			if (result.code === 200) {
+				console.log('uploadArticle:', result)
+				new Notice(result.msg);
+			} else {
+				new Notice(result.msg || '上传文章失败');
+			}
+		} catch (error) {
+			this.settings.showArticle = false;
+			console.error('checkArticleExistence error:', error);
+			new Notice('上传文章失败，请检查信息是否正确');
+		}
+
 	}
 }
 
@@ -265,7 +348,6 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		containerEl.createEl('h1', {text: 'DotCode'});
-		console.log(this.plugin.settings)
 		new Setting(containerEl)
 			.setName('DotCode地址')
 			.setDesc('输入完整地址路径，例如: https://www.dotcode.top/api')
@@ -333,7 +415,7 @@ class SampleSettingTab extends PluginSettingTab {
 }
 
 
-class UploadArticleModel extends Modal {
+class ArticleModel extends Modal {
 	plugin: DotCodeArticle;
 	article: {
 		//标题
@@ -354,6 +436,8 @@ class UploadArticleModel extends Modal {
 		content: string,
 		//摘要
 		summary: string,
+		//是否发布
+		isPush: number,
 	}
 
 	constructor(app: App, plugin: DotCodeArticle) {
@@ -425,13 +509,13 @@ class UploadArticleModel extends Modal {
 			if (this.article.title == '' || this.article.title == undefined) {
 				this.article.title = fileName.replace(/\.md$/, '');
 			}
+			this.article.content = content;
 			this.article.summary = this.removeMarkdownTags(content).substring(0, 100);
 
 			if (this.article.date == '' || this.article.date == undefined) {
 				this.article.date = this.formatTimestampToDateTime(createdTime);
 			}
 			this.article.updated = this.formatTimestampToDateTime(modifiedTime);
-			console.log(this.article)
 			this.showEditModal(this.article);
 			await this.plugin.checkArticleExistence(this.article.title, this.article.date)
 		} else {
@@ -440,7 +524,6 @@ class UploadArticleModel extends Modal {
 		}
 
 		const rowEl = contentEl.createDiv({cls: 'settings-row'});
-		let status = '';
 
 		if (this.plugin.settings.checkArticle.id) {
 			rowEl.createDiv({
@@ -448,21 +531,34 @@ class UploadArticleModel extends Modal {
 			});
 
 			rowEl.createDiv({
-				text: `最近同步: ${new Date().toLocaleString()}`,
+				text: `最近同步: ${this.plugin.settings.checkArticle.updatedTime}`,
 				cls: 'time-display'
 			});
-		}else{
+		} else {
 			rowEl.createDiv({
 				cls: `status-display status-default`
 			});
 		}
+		this.article.isPush = this.plugin.settings.checkArticle.isPush == null ? 0 : this.plugin.settings.checkArticle.isPush;
+		new Setting(rowEl)
+			.addDropdown(dropdown => dropdown
+				.addOption('0', '草稿')
+				.addOption('1', '发布')
+				.setValue(String(this.article.isPush))
+				.onChange(async (value) => {
+					const numberValue = Number(value);
+					this.plugin.settings.checkArticle.isPush = numberValue;
+					this.article.isPush = numberValue;
+					await this.plugin.saveSettings();
+				})
+			);
 
 		new Setting(rowEl)
 			.addButton(button => {
 				button.setButtonText('提交')
 					.setCta()
 					.onClick(async () => {
-						console.log(this.article);
+						await this.uploadArticle(this.article, this.plugin.settings.checkArticle)
 						this.close();
 					});
 			});
@@ -527,5 +623,74 @@ class UploadArticleModel extends Modal {
 			input.dataset.key = field.key;
 			input.disabled = true;
 		});
+	}
+
+	// 移除路径前缀 '../'
+	removePrefixFromPath(filePath: string): string {
+		// 去掉路径前缀 '../'
+		return filePath.replace(/^(\.\.\/)+/, '');
+	}
+	// 上传文章
+	async uploadArticle(article: any,checkArticle:any) {
+		//先将图片上传
+		// 封面
+		if(article.cover){
+			const file = this.app.vault.getFileByPath(this.removePrefixFromPath(article.cover));
+			if (file != null){
+				article.cover= await this.plugin.uploadFile(file);
+			}
+		}
+		// 内容
+		article.content=await this.uploadImagesAndReplacePaths(article.content);
+		console.log("settings",this.plugin.settings)
+		console.log("article",article);
+		console.log("checkArticle",checkArticle);
+		// 调用上传文章接口
+		await this.plugin.uploadArticle(article,checkArticle);
+	}
+
+	// 上传图片
+	async uploadImagesAndReplacePaths(markdownContent: string): Promise<string> {
+	    // 使用新的正则表达式匹配本地图片地址
+		const imageRegex = /!\[.*?\]\((?!http)(.*?)\)/g;
+
+		// 保存新的 markdown 内容
+		let newMarkdownContent = markdownContent;
+
+		// 保存所有匹配到的图片路径
+		const imageMatches = [...markdownContent.matchAll(imageRegex)];
+
+		for (const match of imageMatches) {
+			// 获取图片的相对路径
+			const imagePath = match[1];
+			console.log("imagePath",imagePath)
+			// 从相对路径获取 TFile 对象
+			const tfile = this.app.vault.getAbstractFileByPath(this.removePrefixFromPath(imagePath));
+
+			if (tfile && tfile instanceof TFile) {
+				try {
+					// 上传图片并获取新地址
+					const newImageUrl = await this.plugin.uploadFile(tfile);
+
+					if (newImageUrl) {
+						// 构造完整的旧地址
+						const oldImageMarkdown = match[0];
+
+						// 构造新的 Markdown 图片语法
+						const newImageMarkdown = `![${tfile.basename}](..${newImageUrl})`;
+
+						// 替换文章中的旧地址
+						newMarkdownContent = newMarkdownContent.replace(oldImageMarkdown, newImageMarkdown);
+					}
+				} catch (error) {
+					console.error(`Error uploading file: ${tfile.name}`, error);
+				}
+			} else {
+				console.error(`File not found for path: ${imagePath}`);
+			}
+		}
+
+		// 返回替换了图片地址的新的 markdown 内容
+		return newMarkdownContent;
 	}
 }
