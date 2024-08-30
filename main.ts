@@ -13,7 +13,6 @@ import {
 } from 'obsidian';
 import './styles.css';
 
-
 // 插件的默认设置
 interface DotCodeArticleSettings {
 	publishUrl: string;
@@ -34,8 +33,8 @@ interface DotCodeArticleSettings {
 
 const DEFAULT_SETTINGS: DotCodeArticleSettings = {
 	// api地址
-	publishUrl: 'http://192.168.31.7:8089/api/',
-	fileUrl: 'document/upload/',
+	publishUrl: 'https://www.dotcode.top/api',
+	fileUrl: '/document/upload/',
 	// 用户名
 	username: '',
 	// 密码
@@ -158,7 +157,7 @@ export default class DotCodeArticle extends Plugin {
 	// 尝试登录
 	async attemptLogin() {
 		try {
-			const response = await fetch(this.settings.publishUrl + 'login', {
+			const response = await fetch(this.settings.publishUrl + '/login', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -190,7 +189,7 @@ export default class DotCodeArticle extends Plugin {
 	// 获取用户信息
 	async getUserInfo(retry: boolean = true): Promise<any> {
 		try {
-			const response = await fetch(this.settings.publishUrl + 'system/user/article/info', {
+			const response = await fetch(this.settings.publishUrl + '/system/user/article/info', {
 				method: 'GET',
 				headers: {
 					'Authorization': this.settings.sessionToken,
@@ -226,7 +225,7 @@ export default class DotCodeArticle extends Plugin {
 	// 检查文章是否存在
 	async checkArticleExistence(title: string, date: string) {
 		try {
-			const response = await fetch(this.settings.publishUrl + `note/article/exist/state?title=${title}&date=${date}`, {
+			const response = await fetch(this.settings.publishUrl + `/note/article/exist/state?title=${title}&date=${date}`, {
 				method: 'GET',
 				headers: {
 					'Authorization': this.settings.sessionToken,
@@ -253,14 +252,43 @@ export default class DotCodeArticle extends Plugin {
 	async uploadFile(file: TFile): Promise<any> {
 		// 读取图片文件内容
 		const fileContent = await this.app.vault.readBinary(file);
-		// 假设文件是PNG图片
-		const blob = new Blob([fileContent], { type: 'image/png' });
-		// 创建FormData对象，用于构建表单数据
+		// 获取文件的扩展名，并根据扩展名设置 MIME 类型
+		const fileExtension = file.extension.toLowerCase();
+		let mimeType = '';
+
+		switch (fileExtension) {
+			case 'png':
+				mimeType = 'image/png';
+				break;
+			case 'jpg':
+			case 'jpeg':
+				mimeType = 'image/jpeg';
+				break;
+			case 'gif':
+				mimeType = 'image/gif';
+				break;
+			case 'bmp':
+				mimeType = 'image/bmp';
+				break;
+			case 'webp':
+				mimeType = 'image/webp';
+				break;
+			default:
+				throw new Error(`不支持的图片格式: ${fileExtension}`);
+		}
+
+		// 将二进制数据转换为 Blob 对象
+		const blob = new Blob([fileContent], { type: mimeType });
+
+		// 使用 Blob 创建一个 File 对象
+		const newFile = new File([blob], file.name, { type: mimeType });
+
+		// 创建 FormData 对象并添加文件
 		const formData = new FormData();
-		formData.append('file', blob, file.basename);
+		formData.append('file', newFile);
 
 		// 创建HTTP请求
-		const response = await fetch(this.settings.publishUrl + 'file/image', {
+		const response = await fetch(this.settings.publishUrl + '/file/image', {
 			method: 'POST',
 			headers: {
 				'Authorization': this.settings.sessionToken,
@@ -279,9 +307,9 @@ export default class DotCodeArticle extends Plugin {
 	}
 
 	//上传文章
-	async uploadArticle(article: any,checkArticle:any) {
+	async uploadArticle(article: any, checkArticle: any) {
 		try {
-			const response = await fetch(this.settings.publishUrl + 'note/article/local/upload', {
+			const response = await fetch(this.settings.publishUrl + '/note/article/local/upload', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -395,7 +423,7 @@ class SampleSettingTab extends PluginSettingTab {
 	// 获取版本
 	async getIndex() {
 		try {
-			const response = await fetch(this.plugin.settings.publishUrl + 'index', {
+			const response = await fetch(this.plugin.settings.publishUrl + '/index', {
 				method: 'GET',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -423,7 +451,7 @@ class ArticleModel extends Modal {
 		//分类
 		categories: string,
 		//标签
-		tags: [],
+		tags: string[],
 		//是否转载
 		original: string,
 		//创建时间
@@ -442,7 +470,19 @@ class ArticleModel extends Modal {
 
 	constructor(app: App, plugin: DotCodeArticle) {
 		super(app);
-		this.plugin = plugin
+		this.plugin = plugin;
+		this.article = {
+			title: '',
+			categories: '',
+			tags: [],
+			original: '',
+			date: '',
+			updated: '',
+			cover: '',
+			content: '',
+			summary: '',
+			isPush: 0,
+		};
 	}
 
 	async onOpen() {
@@ -630,28 +670,29 @@ class ArticleModel extends Modal {
 		// 去掉路径前缀 '../'
 		return filePath.replace(/^(\.\.\/)+/, '');
 	}
+
 	// 上传文章
-	async uploadArticle(article: any,checkArticle:any) {
+	async uploadArticle(article: any, checkArticle: any) {
 		//先将图片上传
 		// 封面
-		if(article.cover){
+		if (article.cover) {
 			const file = this.app.vault.getFileByPath(this.removePrefixFromPath(article.cover));
-			if (file != null){
-				article.cover= await this.plugin.uploadFile(file);
+			if (file != null) {
+				article.cover = await this.plugin.uploadFile(file);
 			}
 		}
 		// 内容
-		article.content=await this.uploadImagesAndReplacePaths(article.content);
-		console.log("settings",this.plugin.settings)
-		console.log("article",article);
-		console.log("checkArticle",checkArticle);
+		article.content = await this.uploadImagesAndReplacePaths(article.content);
+		console.log("settings", this.plugin.settings)
+		console.log("article", article);
+		console.log("checkArticle", checkArticle);
 		// 调用上传文章接口
-		await this.plugin.uploadArticle(article,checkArticle);
+		await this.plugin.uploadArticle(article, checkArticle);
 	}
 
 	// 上传图片
 	async uploadImagesAndReplacePaths(markdownContent: string): Promise<string> {
-	    // 使用新的正则表达式匹配本地图片地址
+		// 使用新的正则表达式匹配本地图片地址
 		const imageRegex = /!\[.*?\]\((?!http)(.*?)\)/g;
 
 		// 保存新的 markdown 内容
@@ -663,7 +704,7 @@ class ArticleModel extends Modal {
 		for (const match of imageMatches) {
 			// 获取图片的相对路径
 			const imagePath = match[1];
-			console.log("imagePath",imagePath)
+			console.log("imagePath", imagePath)
 			// 从相对路径获取 TFile 对象
 			const tfile = this.app.vault.getAbstractFileByPath(this.removePrefixFromPath(imagePath));
 
