@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-dotcode",
+	"name": "DotCode",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "DotCode的同步插件，将当前笔记同步到DotCode社区中",
+	"author": "xiaohai",
+	"authorUrl": "https://www.dotcode.top",
+	"fundingUrl": "https://www.dotcode.top",
+	"isDesktopOnly": false
+}

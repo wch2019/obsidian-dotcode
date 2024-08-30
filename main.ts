@@ -258,20 +258,20 @@ export default class DotCodeArticle extends Plugin {
 
 		switch (fileExtension) {
 			case 'png':
-				mimeType = 'image/png';
+				mimeType = 'images/png';
 				break;
 			case 'jpg':
 			case 'jpeg':
-				mimeType = 'image/jpeg';
+				mimeType = 'images/jpeg';
 				break;
 			case 'gif':
-				mimeType = 'image/gif';
+				mimeType = 'images/gif';
 				break;
 			case 'bmp':
-				mimeType = 'image/bmp';
+				mimeType = 'images/bmp';
 				break;
 			case 'webp':
-				mimeType = 'image/webp';
+				mimeType = 'images/webp';
 				break;
 			default:
 				throw new Error(`不支持的图片格式: ${fileExtension}`);
